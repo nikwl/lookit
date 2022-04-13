@@ -1,0 +1,15 @@
+# Pycache
+*.pyc
+*/__pycache__
+
+# Environment files
+/env
+/venv
+
+# Package files 
+/build
+/dist
+/ktb.egg-info
+
+# Testing 
+/test
