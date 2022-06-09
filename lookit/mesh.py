@@ -1,10 +1,17 @@
 import os
-import numpy as np
+import logging
+
 import pyrender
 import trimesh
+import numpy as np
 from PIL import Image
 
-os.environ["PYOPENGL_PLATFORM"] = "egl"
+
+try:
+    os.environ["PYOPENGL_PLATFORM"]
+except KeyError:
+    logging.debug("Setting $PYOPENGL_PLATFORM to egl")
+    os.environ["PYOPENGL_PLATFORM"] = "egl"
 
 
 def create_gif_rot(
@@ -19,9 +26,7 @@ def create_gif_rot(
     for angle in range(0, 360, int(360 / num_renders)):
         img_list.append(
             np.expand_dims(
-                render(
-                    models, yrot=start_angle + angle, ztrans=zoom, **kwargs
-                ),
+                render(models, yrot=start_angle + angle, ztrans=zoom, **kwargs),
                 axis=3,
             )
         )
@@ -36,7 +41,7 @@ def create_gif_tf(
 ):
     """
     Create a gif using a list of custom transforms
-    
+
     models should be a list, transforms should be a list of lists.
     """
 
@@ -70,8 +75,11 @@ def trimesh_simplify(mesh):
         else:
             mesh = trimesh.util.concatenate(
                 tuple(
-                    trimesh.Trimesh(vertices=g.vertices, faces=g.faces) if hasattr(g, "visual") 
-                    else trimesh.Trimesh(vertices=g.vertices, faces=g.faces, visual=g.visual)
+                    trimesh.Trimesh(vertices=g.vertices, faces=g.faces)
+                    if hasattr(g, "visual")
+                    else trimesh.Trimesh(
+                        vertices=g.vertices, faces=g.faces, visual=g.visual
+                    )
                     for g in mesh.geometry.values()
                 )
             )
@@ -83,37 +91,45 @@ def trimesh_pretty_pointcloud(pointcloud, radius=None, subdivisions=2):
     """Create a pointcloud with spheres instead of points"""
     if radius is None:
         radius = max(pointcloud.extents) / 35
-    return trimesh.util.concatenate([
-        trimesh.primitives.Sphere(
-            radius=radius,
-            center=v,
-            subdivisions=subdivisions,
-        )
-        for v in pointcloud.vertices
-    ])
+    return trimesh.util.concatenate(
+        [
+            trimesh.primitives.Sphere(
+                radius=radius,
+                center=v,
+                subdivisions=subdivisions,
+            )
+            for v in pointcloud.vertices
+        ]
+    )
+
+
+def trimesh_normalize_matrix(mesh, scale=True):
+    """Obtain normalization matrix for mesh so that it occupies a unit cube"""
+
+    # Get the overall size of the object
+    mesh_min, mesh_max = np.min(mesh.vertices, axis=0), np.max(mesh.vertices, axis=0)
+    size = mesh_max - mesh_min
+
+    # Center the object
+    mesh.vertices = (size / 2.0) + mesh_min
+    trans = trimesh.transformations.translation_matrix(-((size / 2.0) + mesh_min))
+    if not scale:
+        return trans
+
+    # Normalize scale of the object
+    scale = trimesh.transformations.scale_matrix((1.0 / np.max(size)))
+    return scale @ trans
 
 
 def trimesh_normalize(mesh, scale=True):
     """Normalize a mesh so that it occupies a unit cube"""
 
-    # Get the overall size of the object
+    mat = trimesh_normalize_matrix(mesh, scale=scale)
     mesh = mesh.copy()
-    mesh_min, mesh_max = np.min(mesh.vertices, axis=0), np.max(mesh.vertices, axis=0)
-    size = mesh_max - mesh_min
-
-    # Center the object
-    mesh.vertices = mesh.vertices - ((size / 2.0) + mesh_min)
-
-    # Normalize scale of the object
-    if scale:
-        mesh.vertices = mesh.vertices * (1.0 / np.max(size))
-    try:
-        mesh.fix_normals()
-    except AttributeError:
-        pass
+    mesh.apply_transform(mat)
     return mesh
 
-    
+
 def render(
     mesh,
     modality="color",
@@ -135,7 +151,7 @@ def render(
     """Render a trimesh object or list of objects"""
 
     assert modality in ["color", "depth", "pointcloud"]
-    
+
     # Create a pyrender scene with ambient light
     scene = pyrender.Scene(ambient_light=np.ones(3), bg_color=bg_color)
 
@@ -145,20 +161,21 @@ def render(
     if remove_texture:
         for i in range(len(mesh)):
             if isinstance(mesh[i], trimesh.Trimesh):
-                mesh[i] = trimesh.Trimesh(vertices=mesh[i].vertices, faces=mesh[i].faces)
+                mesh[i] = trimesh.Trimesh(
+                    vertices=mesh[i].vertices, faces=mesh[i].faces
+                )
     if not isinstance(wireframe, list):
         wireframe = [wireframe] * len(mesh)
     for m, w in zip(mesh, wireframe):
         if isinstance(m, trimesh.points.PointCloud):
-            scene.add(
-                pyrender.Mesh.from_points(m.vertices, colors=m.colors)
-            )
+            scene.add(pyrender.Mesh.from_points(m.vertices, colors=m.colors))
         else:
             scene.add(pyrender.Mesh.from_trimesh(m, wireframe=w))
 
     aspect_ratio = resolution[0] / resolution[1]
     camera = pyrender.PerspectiveCamera(
-        yfov=yfov, aspectRatio=aspect_ratio,
+        yfov=yfov,
+        aspectRatio=aspect_ratio,
     )
 
     # Apply translations
@@ -217,13 +234,11 @@ def render(
         world_x = normalized_x * depth[y, x] / fx
         world_y = normalized_y * depth[y, x] / fy
         world_z = -depth[y, x]
-        pointcloud = trimesh.points.PointCloud(
-            np.vstack((world_x, world_y, world_z)).T
-        )
+        pointcloud = trimesh.points.PointCloud(np.vstack((world_x, world_y, world_z)).T)
         pointcloud.apply_transform(
-            trimesh.transformations.rotation_matrix(np.radians(180), (0, 0, 1)) @ 
-            trimesh.transformations.rotation_matrix(np.radians(180), (0, 1, 0)) @ 
-            np.linalg.inv(camera_matrix)
+            trimesh.transformations.rotation_matrix(np.radians(180), (0, 0, 1))
+            @ trimesh.transformations.rotation_matrix(np.radians(180), (0, 1, 0))
+            @ np.linalg.inv(camera_matrix)
         )
         return pointcloud
 
@@ -233,4 +248,3 @@ def render(
         fy=yfov,
         camera_matrix=camera_pose,
     )
-
