@@ -113,7 +113,6 @@ def trimesh_normalize_matrix(mesh, scale=True):
     size = mesh_max - mesh_min
 
     # Center the object
-    mesh.vertices = (size / 2.0) + mesh_min
     trans = trimesh.transformations.translation_matrix(-((size / 2.0) + mesh_min))
     if not scale:
         return trans
