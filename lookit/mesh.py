@@ -5,6 +5,7 @@ import pyrender
 import trimesh
 import numpy as np
 from PIL import Image
+from matplotlib import tri
 
 from lookit import LOG
 
@@ -63,6 +64,20 @@ def create_gif_tf(
             )
         )
     return np.concatenate(img_list, axis=3)
+
+
+def get_faces_from_vertices(vertex_mask, faces, inclusive=False):
+    """ Get faces containting vertices """
+    vertex_index = set(np.nonzero(vertex_mask)[0])
+    face_mask = np.zeros((faces.shape[0],))
+    for idx, f in enumerate(faces):
+        if inclusive:
+            if f[0] in vertex_index and f[1] in vertex_index and f[2] in vertex_index:
+                face_mask[idx] = 1
+        else:
+            if f[0] in vertex_index or f[1] in vertex_index or f[2] in vertex_index:
+                face_mask[idx] = 1
+    return face_mask.astype(bool)
 
 
 def trimesh_force(mesh):
@@ -128,6 +143,58 @@ def trimesh_normalize(mesh, scale=True):
     mat = trimesh_normalize_matrix(mesh, scale=scale)
     mesh = mesh.copy()
     mesh.apply_transform(mat)
+    return mesh
+
+
+def pointcloud_from_depth(depth, fx, fy):
+    # fy = fx = 0.5 / np.tan(fov * 0.5)
+    height = depth.shape[0]
+    width = depth.shape[1]
+    mask = np.where(depth > 0)
+    x = mask[1]
+    y = mask[0]
+    normalized_x = (x.astype(float) - width * 0.5) / width
+    normalized_y = -(y.astype(float) - height * 0.5) / height
+    world_x = normalized_x * depth[y, x] / fx
+    world_y = normalized_y * depth[y, x] / fy
+    world_z = -depth[y, x]
+    pointcloud = trimesh.points.PointCloud(np.vstack((world_x, world_y, world_z)).T)
+    pointcloud.apply_transform(
+        trimesh.transformations.rotation_matrix(np.radians(180), (0, 0, 1))
+        @ trimesh.transformations.rotation_matrix(np.radians(180), (0, 1, 0))
+    )
+    return pointcloud.vertices.copy()
+
+
+def mesh_from_depth(depth, fx, fy):
+    # fy = fx = 0.5 / np.tan(fov * 0.5)
+    height = depth.shape[0]
+    width = depth.shape[1]
+    x, y = np.meshgrid(
+        np.arange(width),
+        np.arange(height),
+        indexing="xy",
+    )
+    x, y = x.flatten(), y.flatten()
+    normalized_x = (x.astype(float) - width * 0.5) / width
+    normalized_y = -(y.astype(float) - height * 0.5) / height
+    world_x = normalized_x * depth[y, x] / fx
+    world_y = normalized_y * depth[y, x] / fy
+    world_z = -depth[y, x]
+    pointcloud = trimesh.points.PointCloud(np.vstack((world_x, world_y, world_z)).T)
+    pointcloud.apply_transform(
+        trimesh.transformations.rotation_matrix(np.radians(180), (0, 0, 1))
+        @ trimesh.transformations.rotation_matrix(np.radians(180), (0, 1, 0))
+    )
+    pts = pointcloud.vertices.copy()
+    mesh = trimesh.Trimesh(
+        pts,
+        tri.Triangulation(x.flatten(), y.flatten()).triangles
+    )
+    mask = (mesh.vertices == [0, 0, 0]).all(axis=1)
+    faces = get_faces_from_vertices(mask, mesh.faces)
+    mesh.update_faces(~faces)
+    mesh.invert()
     return mesh
 
 
@@ -233,26 +300,7 @@ def render(
             return np.array(c)
         return np.array(Image.fromarray(c).convert(mode))
 
-    def pointcloud(depth, fx, fy):
-        # fy = fx = 0.5 / np.tan(fov * 0.5)
-        height = depth.shape[0]
-        width = depth.shape[1]
-        mask = np.where(depth > 0)
-        x = mask[1]
-        y = mask[0]
-        normalized_x = (x.astype(float) - width * 0.5) / width
-        normalized_y = -(y.astype(float) - height * 0.5) / height
-        world_x = normalized_x * depth[y, x] / fx
-        world_y = normalized_y * depth[y, x] / fy
-        world_z = -depth[y, x]
-        pointcloud = trimesh.points.PointCloud(np.vstack((world_x, world_y, world_z)).T)
-        pointcloud.apply_transform(
-            trimesh.transformations.rotation_matrix(np.radians(180), (0, 0, 1))
-            @ trimesh.transformations.rotation_matrix(np.radians(180), (0, 1, 0))
-        )
-        return pointcloud.vertices.copy()
-
-    return pointcloud(
+    return pointcloud_from_depth(
         depth=np.array(d),
         fx=fov,
         fy=(fov * aspect_ratio),
