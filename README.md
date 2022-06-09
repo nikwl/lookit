@@ -11,10 +11,9 @@ pip install git+https://github.com/nikwl/lookit.git
 
 Load a mesh, render, and view a mesh.
 ```python
-import lookit
-
 from PIL import Image
 import trimesh
+import lookit
 
 Image.fromarray(
     lookit.mesh.render(
@@ -27,10 +26,9 @@ Image.fromarray(
 
 Create a point cloud from a given camera perspective, then render and view it.
 ```python
-import lookit
-
 from PIL import Image
 import trimesh
+import lookit
 
 ptcld = lookit.mesh.render(
     mesh=trimesh.load("examples/mesh.ply"),
@@ -53,10 +51,9 @@ Image.fromarray(
 Create and save a rotating gif of a mesh.
 ![rotating mesh](assets/mesh.gif)
 ```python
-import lookit
-
 from PIL import Image
 import trimesh
+import lookit
 
 gif = lookit.mesh.create_gif_rot(
     trimesh.load("examples/mesh.ply")
@@ -78,4 +75,29 @@ Image.fromarray(
         xrot=180,
     )
 ).show()
+```
+
+Plot a histogram of an image.
+```bash
+    ┌────────────────────────────────────────────────────────────────────────────────────────────────────┐
+2.52┤                                                          ▟                                         │
+    │                                                         ▗██      ▗▄▖                               │
+2.10┤                                                         ▐██▌    ▗███▖                              │
+1.68┤                                                         ▟██▙ ▟███████▖                             │
+    │                                                         ████████████████▖                          │
+1.26┤                                                        ▐█████████████████▙▄▄▄▄                     │
+    │                                                       ▗▟████████████████████████▙▄▄▗▖              │
+0.84┤                                                       ▐███████████████████████████████▙            │
+0.42┤                                                      ▄▟█████████████████████████████████▙▖         │
+    │                                                ▄▄▄▄▟██████████████████████████████████████▄▄▖      │
+0.00┤▖▗ ▗▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄█████████████████████████████████████████████████████████████████▄▄▄▄│
+    └┬────────────────────────┬────────────────────────┬───────────────────────┬────────────────────────┬┘
+     1.0                    47.5                     94.0                    140.5                  187.0 
+[y] Percent of Pixels                     [x] Pixel Intensity Value                                       
+data type: uint8 | shape: (1042, 3090, 3) | height: 1042 | width: 3090
+```
+```python
+from PIL import Image
+import lookit
+lookit.image.summary(Image.open("img.jpg"))
 ```
