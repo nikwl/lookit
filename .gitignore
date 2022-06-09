@@ -9,7 +9,8 @@
 # Package files 
 /build
 /dist
-/ktb.egg-info
+/*.egg-info
 
 # Testing 
 /test
+temp.py

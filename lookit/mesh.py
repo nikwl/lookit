@@ -1,7 +1,10 @@
+import os
 import numpy as np
 import pyrender
 import trimesh
 from PIL import Image
+
+os.environ["PYOPENGL_PLATFORM"] = "egl"
 
 
 def create_gif_rot(

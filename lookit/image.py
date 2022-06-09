@@ -79,6 +79,7 @@ def resizeAndPad(img, size, padColor=0):
 
 def summary(img):
     """Display a summary of useful data about an image"""
+    img = np.array(img)
     y, x = np.histogram(img, bins=255)
     
     y = y.astype(float)
