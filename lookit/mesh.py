@@ -6,6 +6,8 @@ import trimesh
 import numpy as np
 from PIL import Image
 
+from lookit import LOG
+
 
 try:
     os.environ["PYOPENGL_PLATFORM"]
@@ -63,11 +65,11 @@ def create_gif_tf(
     return np.concatenate(img_list, axis=3)
 
 
-def trimesh_simplify(mesh):
+def trimesh_force(mesh):
     """Convert a trimesh mesh or scene into a trimesh mesh."""
 
     if isinstance(mesh, list):
-        return [trimesh_simplify(m) for m in mesh]
+        return [trimesh_force(m) for m in mesh]
 
     if isinstance(mesh, trimesh.Scene):
         if len(mesh.geometry) == 0:
@@ -133,7 +135,7 @@ def trimesh_normalize(mesh, scale=True):
 def render(
     mesh,
     modality="color",
-    yfov=(np.pi / 4.0),
+    fov=(np.pi / 4.0),
     resolution=(1280, 720),
     xtrans=0.0,
     ytrans=0.0,
@@ -155,7 +157,7 @@ def render(
     # Create a pyrender scene with ambient light
     scene = pyrender.Scene(ambient_light=np.ones(3), bg_color=bg_color)
 
-    mesh = trimesh_simplify(mesh)
+    mesh = trimesh_force(mesh)
     if not isinstance(mesh, list):
         mesh = [mesh]
     if remove_texture:
@@ -166,15 +168,22 @@ def render(
                 )
     if not isinstance(wireframe, list):
         wireframe = [wireframe] * len(mesh)
+
     for m, w in zip(mesh, wireframe):
         if isinstance(m, trimesh.points.PointCloud):
-            scene.add(pyrender.Mesh.from_points(m.vertices, colors=m.colors))
+            LOG.debug("Parsed pointcloud")
+            if not m.colors:
+                colors = np.array((0, 0, 0, 0))
+            else:
+                colors = m.colors
+            scene.add(pyrender.Mesh.from_points(m.vertices, colors=colors))
         else:
+            LOG.debug("Parsed mesh")
             scene.add(pyrender.Mesh.from_trimesh(m, wireframe=w))
 
     aspect_ratio = resolution[0] / resolution[1]
     camera = pyrender.PerspectiveCamera(
-        yfov=yfov,
+        yfov=fov,
         aspectRatio=aspect_ratio,
     )
 
@@ -201,6 +210,7 @@ def render(
         angle=np.radians(zrot), direction=[0, 0, 1], point=(0, 0, 0)
     )
     camera_pose = np.dot(zrotmat, camera_pose)
+    LOG.debug("Creating camera with pose: \n{}".format(camera_pose))
 
     # Insert the camera
     scene.add(camera, pose=camera_pose)
@@ -214,15 +224,17 @@ def render(
     )
     scene.add(spot_light, pose=camera_pose)
 
-    # Render!
+    # Render
     r = pyrender.OffscreenRenderer(resolution[0], resolution[1], point_size=point_size)
     c, d = r.render(scene)
     if modality == "depth":
-        return np.array(Image.fromarray(d).convert(mode))
+        return np.array(d)
     elif modality == "color":
+        if mode is None:
+            return np.array(c)
         return np.array(Image.fromarray(c).convert(mode))
 
-    def pointcloud(depth, fx, fy, camera_matrix):
+    def pointcloud(depth, fx, fy):
         # fy = fx = 0.5 / np.tan(fov * 0.5)
         height = depth.shape[0]
         width = depth.shape[1]
@@ -238,13 +250,11 @@ def render(
         pointcloud.apply_transform(
             trimesh.transformations.rotation_matrix(np.radians(180), (0, 0, 1))
             @ trimesh.transformations.rotation_matrix(np.radians(180), (0, 1, 0))
-            @ np.linalg.inv(camera_matrix)
         )
-        return pointcloud
+        return pointcloud.vertices.copy()
 
     return pointcloud(
-        depth=np.array(Image.fromarray(d).convert("L")),
-        fx=(yfov * aspect_ratio),
-        fy=yfov,
-        camera_matrix=camera_pose,
+        depth=np.array(d),
+        fx=fov,
+        fy=(fov * aspect_ratio),
     )

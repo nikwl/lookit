@@ -1,4 +1,7 @@
 import os
+import logging
+
+LOG = logging.getLogger('lookit')
 
 
 def get_file(d, fe, fn=None):

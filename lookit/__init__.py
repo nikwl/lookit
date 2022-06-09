@@ -1,3 +1,5 @@
+from .utils import LOG
+
 from . import cm
 from . import image
 from . import io
