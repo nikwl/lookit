@@ -49,3 +49,33 @@ Image.fromarray(
     )
 ).show()
 ```
+
+Create and save a rotating gif of a mesh.
+![rotating mesh](assets/mesh.gif)
+```python
+import lookit
+
+from PIL import Image
+import trimesh
+
+gif = lookit.mesh.create_gif_rot(
+    trimesh.load("examples/mesh.ply")
+)
+
+ptcld = lookit.mesh.render(
+    mesh=trimesh.load("examples/mesh.ply"),
+    resolution=(1920, 1080),
+    modality="pointcloud",
+)
+
+Image.fromarray(
+    lookit.mesh.render(
+        mesh=lookit.mesh.trimesh_normalize(
+            trimesh.PointCloud(ptcld)
+        ),
+        resolution=(1920, 1080),
+        yrot=0,
+        xrot=180,
+    )
+).show()
+```
