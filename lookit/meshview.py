@@ -18,7 +18,7 @@ def render_ext(args):
 
     root_dir = os.path.abspath(args.root)
     assert os.path.isdir(root_dir), "Root dir not found: {}".format(args.splits)
-    assert len(resolution) == 2
+    assert len(args.resolution) == 2
     save_file = os.path.abspath(args.save)
     assert os.path.isdir(
         os.path.dirname(save_file)
