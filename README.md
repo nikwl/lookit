@@ -9,6 +9,11 @@ pip install git+https://github.com/nikwl/lookit.git
 
 ## Functions
 
+Create a summary render of all meshes in a given directory. 
+```
+python -m lookit.meshview <root_directory> <image_file.jpg> --ext .ply
+```
+
 Load a mesh, render, and view a mesh.
 ```python
 from PIL import Image
