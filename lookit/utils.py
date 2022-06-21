@@ -9,6 +9,8 @@ def get_file(d, fe, fn=None):
     Given a root directory and a list of file extensions, recursively
     return all files in that directory that have that extension.
     """
+    if not isinstance(fe, list):
+        fe = [fe]
     for f in os.listdir(d):
         fp = os.path.join(d, f)
         if os.path.isdir(fp):
