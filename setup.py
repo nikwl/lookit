@@ -1,7 +1,8 @@
 import setuptools
 
-with open("README.md", "r") as fh:
-    long_description = fh.read().splitlines()
+#with open("README.md", "r") as fh:
+#    long_description = fh.read().splitlines()
+long_description = ""
 
 with open('requirements.txt') as f:
     requirements = f.read().splitlines()
